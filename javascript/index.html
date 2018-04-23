@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <script type="text/javascript" src="sha256.js"></script>
+    <script type="text/javascript" src="jsencrypt.js"></script>
+    <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
+    <style>
+        input,
+        textarea {
+            width: 100%;
+            padding: 3px;
+        }
+    </style>
+</head>
+
+<body>
+    <fieldset>
+        <legend>INPUT</legend>
+
+        <label for="apikey">API Key</label>
+        <br/>
+        <input type="text" id="apikey" name="apikey" value="myAPIkey">
+        <br/>
+
+        <label for="timestamp">Timestamp</label>
+        <br/>
+        <input type="text" id="timestamp" name="timestamp" value="timestamp">
+        <br/>
+
+        <label for="pubkey">API Secret</label>
+        <br/>
+        <textarea id="pubkey" rows="15" cols="65">-----BEGIN PUBLIC KEY-----
+MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCgBSU90PX4WyXFAZ/+M84dJNEi
+/0j5OermfydTU4g2JvnpO6BOQjNpb5+mOLjVoij7DWTdDtx1WThRm04N3DVuyh+a
+5cledvMbcngvyiXpQCdskT9bVmI4QLbmRny46S7MER1jhziMQRfRw9gbmlB2iCEq
+n21kDr842Q+WDtLE4QIDAQAB
+-----END PUBLIC KEY-----</textarea>
+        <br/>
+		
+    </fieldset>
+
+    <fieldset>
+        <legend>OUTPUT</legend>
+
+        <label for="uncrypted">SHA 256:</label>
+        <br/>
+        <textarea id="uncrypted" name="uncrypted" type="text" rows=4 cols=70></textarea>
+        <br/>
+
+        <label for="content">Signed:</label>
+        <br/>
+        <textarea id="content" rows=4 cols=70></textarea>
+
+        <label for="output">Output:</label>
+        <br/>
+        <textarea id="output" rows=4 cols=70></textarea>
+    </fieldset>
+    <p>
+	More info on <a href="https://confluence.syxautomations.com/display/NGPLATFORM/Api-Key+Generation+Technical" target="_blank">Confluence</a>
+    </p>
+
+    <script type="text/javascript">
+
+        function publicKey() { return $('#pubkey').val(); }
+        function APIkey() { return $('#apikey').val(); }
+        function timestamp() { return $('#timestamp').val(); }
+        function textToEncrypt() { return $('#uncrypted').val(); }
+        function showResult(value) { $('#content').val(value); }
+        function showSHA256(value) { $('#uncrypted').val(value); }
+        function setTimestamp(value) { $('#timestamp').val(value); }
+
+
+        function hash(values) {  // makes SHA256-hash from values (concatted with "_")
+            var shaObj = new jsSHA("SHA-256", "TEXT");
+            shaObj.update(values.join("_"));
+            var myhash = shaObj.getHash("HEX");
+            return myhash;
+        }
+
+        function sign(textToEncrypt, publicKey) { // signs SHA256-hash with public key
+            // Encrypt with the public key...
+            var encrypt = new JSEncrypt();
+            encrypt.setPublicKey(publicKey);
+            var encrypted = encrypt.encrypt(textToEncrypt);
+            return encrypted;
+        }
+
+        function decrypt(encrypted, privateKey) {
+            // Decrypt with the private key...
+            var decrypt = new JSEncrypt();
+            decrypt.setPrivateKey(privateKey);
+            var uncrypted = decrypt.decrypt(encrypted);
+            return uncrypted;
+        }
+
+        function hashAndEncrypt() {
+            var signature = hash([APIkey(),timestamp()]);
+            var uncrypted = signature;
+            showSHA256(uncrypted);
+            var signed = sign(signature, publicKey());
+            showResult(signed);
+
+            output = {
+                apikey: APIkey(), 
+                timestamp: timestamp(), 
+                signature: signed
+            }
+            $("#output").val(JSON.stringify(output)); 
+        }
+
+        var today = new Date();
+        setTimestamp(today.toISOString());
+        hashAndEncrypt();
+
+        $(function () {
+            $("input,textarea").change(function () {
+                hashAndEncrypt();
+            })
+        })
+
+    </script>
+</body>
+
+</html>
