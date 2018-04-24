@@ -11,7 +11,7 @@ namespace Library
     {
         public static readonly string API_LOGIN_TIMESTAMP_FORMAT = "yyyy'-'MM'-'ddTHH\\:mm\\:ss.fffZ";
 
-        public LoginDTO GenerateLogin(string apiKey, string publicKey)
+        public LoginRequestDTO GenerateLogin(string apiKey, string publicKey)
         {
             var currentTimeStamp = DateTime.UtcNow.ToString(API_LOGIN_TIMESTAMP_FORMAT);
 
@@ -24,7 +24,7 @@ namespace Library
             // create a signature by encrypting that data.
             var signature = EncryptWithPublicKey(publicKey, encrypted);
 
-            return new LoginDTO(apiKey, currentTimeStamp, signature);
+            return new LoginRequestDTO(apiKey, currentTimeStamp, signature);
         }
 
         private string CreateDataToEncrypt(string apikey, string currentTimeStamp)

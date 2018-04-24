@@ -2,9 +2,9 @@ using System;
 
 namespace Library
 {
-    public class LoginDTO
+    public class LoginRequestDTO
     {
-        public LoginDTO(string apiKey, string timestamp, string signature)
+        public LoginRequestDTO(string apiKey, string timestamp, string signature)
         {
             Signature = signature;
             Timestamp = timestamp;

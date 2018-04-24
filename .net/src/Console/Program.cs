@@ -1,18 +1,23 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
+using Library;
+using Library.Models;
+using Newtonsoft.Json;
 
 namespace EnvisoConsole
 {
     class Program
     {
-        private const string defaultApiKey = "KZ9vFiwKh0mlZrq+sxSEbg==";
+        private const string defaultTenantSecretKey = "mosIgBkcR0qKeZenWmpE/A==";
+        private const string defaultApiKey = "L5MhJYSCp06SpYlI2cjbHg==";
         private const string defaultPublicRsaKey = @"-----BEGIN PUBLIC KEY-----
-MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCrtiJ5z5yHWJP7DKjhRjnQbkyY
-e1Ijn1wP2UzSBAfxEBekDbMvw2T+BK6TZhxHzKX9IsTF8Vo8PUmNbomW6Qohd321
-hgairRZ+BG0d7UQVdzB63r2QSbiNmvoayNB93LcITCOxrkXB3fyK7Edv66jF9pTs
-l0mXSGZ0K7UzB28yHQIDAQAB
+MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQChrE9eekbvWaz7Rv80UWpq7lwz
+zQlQOQoTU7OxEFDVsftVyHus/MLQbCbIgZoo3i16ocY5VKKjqP8EiCORP+CU5SBA
+oLGfsgIRLqzPT+6DcWZckmkpZRfKd51O/6QByIFCwQKWYcrqrZDzJCGBiZSuv8rd
+85RRfYuXSHNyachyvwIDAQAB
 -----END PUBLIC KEY-----";
 
         static void Main(string[] args)
@@ -33,31 +38,27 @@ l0mXSGZ0K7UzB28yHQIDAQAB
                 rsaKey = defaultPublicRsaKey;
             }
 
-            Library.LoginGenerator generator = new Library.LoginGenerator();
-            var loginRequest = generator.GenerateLogin(apikey, rsaKey);
-            Console.WriteLine("The Loginrequest is : ");
-            var serializedRequest = Newtonsoft.Json.JsonConvert.SerializeObject(loginRequest);
-            Console.WriteLine(serializedRequest);
-
-            using (var httpClient = new HttpClient())
+            Console.WriteLine($"Please fill in your tenantsecret key: {Environment.NewLine}eg: {Environment.NewLine}{defaultTenantSecretKey}");
+            var tenantSecretKey = Console.ReadLine();
+            if (string.IsNullOrWhiteSpace(tenantSecretKey))
             {
-                var content = new StringContent(serializedRequest, Encoding.UTF8, "application/json");
-                Console.WriteLine("Executing login: . . . ");
-                var postTask = Task.Run(async () => await httpClient.PostAsync("https://api.staging-enviso.io/resellingapi/v1/apis/login", content));
-                postTask.Wait(TimeSpan.FromSeconds(3));
-                if (postTask.IsCompletedSuccessfully)
-                {
-                    var httpResponseMessage = postTask.Result;
-                    Console.WriteLine($"{httpResponseMessage.StatusCode.ToString()} - {httpResponseMessage.Content.ReadAsStringAsync().Result}");
-                }
-                else
-                {
-                    Console.WriteLine($"An error occured: {postTask.Exception.ToString()}");
-                }
+                tenantSecretKey = defaultTenantSecretKey;
             }
 
-            Console.WriteLine("Press any key to close . . .");
-            Console.ReadLine();
+            ExecuteSimpleCall(apikey, rsaKey, tenantSecretKey);
+
+            Console.ReadLine();            
+        }
+
+        public static void ExecuteSimpleCall(string apiKey, string rsaKey, string tenantSecretKey)
+        {
+            var envisoClient = new EnvisoClient(apiKey, rsaKey, tenantSecretKey);
+            var initializeTask = Task.Run(async () => await envisoClient.Initialize());
+            initializeTask.Wait();
+            var getVenuesTask = Task.Run(async () => await envisoClient.GetAsync<IEnumerable<VenueModelDTO>>(EnvisoClient.URI.VENUES));
+            
+            getVenuesTask.Wait();
+            Console.WriteLine($"Result of get venues is {JsonConvert.SerializeObject(getVenuesTask.Result)}");
         }
     }
 }
