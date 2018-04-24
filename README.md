@@ -1,2 +1,4 @@
 # EnvisoApiAuthentication
-Repository with sample code how to authenticate towards Enviso.io with an apikey.
+Repository with sample code that demonstrates how to authenticate towards enviso.io using an apikey.
+
+Currently, this includes sample code for .net, javascript & python.
