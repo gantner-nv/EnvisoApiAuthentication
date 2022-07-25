@@ -8,6 +8,7 @@
     <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
     <style>
         input,
+        button,
         textarea {
             width: 100%;
             padding: 3px;
@@ -26,7 +27,7 @@
 
         <label for="timestamp">Timestamp</label>
         <br/>
-        <input type="text" id="timestamp" name="timestamp" value="timestamp">
+        <input type="text" id="timestamp" name="timestamp">
         <br/>
 
         <label for="pubkey">API Secret</label>
@@ -38,8 +39,12 @@ MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCgBSU90PX4WyXFAZ/+M84dJNEi
 n21kDr842Q+WDtLE4QIDAQAB
 -----END PUBLIC KEY-----</textarea>
         <br/>
-		
     </fieldset>
+    
+    <br/>
+    <button onclick="refreshTime();">Refresh</button>
+    <br/>
+    <br/>
 
     <fieldset>
         <legend>OUTPUT</legend>
@@ -62,6 +67,12 @@ n21kDr842Q+WDtLE4QIDAQAB
     </p>
 
     <script type="text/javascript">
+
+        function refreshTime() {
+            var today = new Date();
+            setTimestamp(today.toISOString());
+            hashAndEncrypt();
+        }
 
         function publicKey() { return $('#pubkey').val(); }
         function APIkey() { return $('#apikey').val(); }
@@ -110,9 +121,7 @@ n21kDr842Q+WDtLE4QIDAQAB
             $("#output").val(JSON.stringify(output)); 
         }
 
-        var today = new Date();
-        setTimestamp(today.toISOString());
-        hashAndEncrypt();
+        refreshTime();
 
         $(function () {
             $("input,textarea").change(function () {
