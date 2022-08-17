@@ -1,0 +1,15 @@
+{
+    "description": "Enviso Example",
+    "require": {
+        "php": "^8.0 || ^8.1",
+        "illuminate/http": "^9.0.0",
+        "guzzlehttp/guzzle": "^7.3.0",
+        "phpseclib/phpseclib": "^3.0",
+        "nesbot/carbon": "^2.50.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Enviso\\": "src"
+        }
+    }
+}
