@@ -34,3 +34,5 @@ obj/
 **/testresults.xml
 **/*.orig
 pack.*.log
+/.net/.cr
+/.net/.vs
