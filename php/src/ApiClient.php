@@ -5,6 +5,7 @@ namespace Enviso;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use phpseclib3\Crypt\PublicKeyLoader;
 use phpseclib3\Crypt\RSA;
 use phpseclib3\Crypt\RSA\PublicKey;
 
@@ -47,8 +48,7 @@ class ApiClient
 
         $hash = hash('sha256', $this->apiKey . '_' . $timestamp);
 
-        /** @var PublicKey $rsa */
-        $rsa = PublicKey::loadPublicKey($this->publicKey)->withPadding(RSA::ENCRYPTION_PKCS1);
+        $rsa = PublicKeyLoader::load($this->publicKey)->withPadding(RSA::ENCRYPTION_PKCS1);
 
         $signature = base64_encode($rsa->encrypt($hash));
         $authEndpoint = $this->baseUrl . "authenticationapi/v1/login";
