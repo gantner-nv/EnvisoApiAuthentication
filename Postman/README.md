@@ -6,8 +6,8 @@
 - Open the Postman application
 - Create a new workspace or select the workspace you want to import the files
 - Import the Postman collection.json and environment.json file from this folder 
-- Add the tenant specific information to the environment variables (x-api-secret, x-api-key, tenant_secretkey) --> Contact enviso/eloxx support if you don't have these infos
-- Define the baseURL in the environment file the REST API you want to send your requests to (example: /eLoxxapi)
+- Add the tenant specific information to the environment variables **Into the current value when executed directly in Postman** (x-api-secret, x-api-key, tenant_secretkey) --> Contact enviso/eloxx support if you don't have these infos
+- define the baseURL in the environment file the REST API you want to send your requests to (example: /eLoxxapi)
 - Select the Environment (EnvisoApiAuthentication) you want to run your collection with (in the top right corner)
 - Add the request you want to send (there is one example request to the eLoxx API)
 - Send the request
