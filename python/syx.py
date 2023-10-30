@@ -10,13 +10,13 @@ from Crypto.Cipher import PKCS1_OAEP
 import requests
 
 pub_key = """-----BEGIN PUBLIC KEY-----
-MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCToCIGT0CRz+8ZRfU105P2aM8t
-Ndp1zBuQxyQ7FGVmswd2h72cafutkX0PL5GbcgqZTzhms3QkpzYu29YDOJKp4h1Q
-8xkLaHQfgHmXg6BA+HNg3r2vIlsc0tGMDC7UrGF40FKEIVo2oIIQv0AygYo+BxAm
-zrCnQXkdGo8FBq2JMQIDAQAB
+MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDRhyZgq+5gKBOoD5JAstVS5UM3
+/nyl3JAubhEngWvYdzr7+0CSs4gevv+r4CLhkyWZuBNf/B7kXtg0SPJ/Lyp+diJI
+4G0igA/ZT9jpdiT6GIugIwggeuIv0/ykEJMQBeSWQ29DgPf/hwO/PtRWGcOx2NxN
+wh0ULIebM5cEzr3v4QIDAQAB
 -----END PUBLIC KEY-----"""
-api_key = 'MPM7O0JOYkqHzfj3JtgLxg=='
-url = 'https://api.test-enviso.io/authenticationapi/v1/login/'
+api_key = 'h6ISMteE8k2+0thnmHJihg=='
+url = 'https://api.staging-enviso.io/authenticationapi/v1/login/'
 
 timestamp = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%fZ')[:-4]+'Z'
 
