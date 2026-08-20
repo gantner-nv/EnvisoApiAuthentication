@@ -13,6 +13,6 @@
 - Send the request
 
 ## What happens in the background
-- In the Pre-request Script of the Collection a Login to enviso/eloxx will be executed with the Signed Api-Key/Timestamp. The Access token from the response will be saved which is later used to send the request.
+- In the Pre-request Script of the Collection a Login to enviso/eloxx will be executed with the encrypted Api-Key/Timestamp (sent as the `signature` field — despite the name, this is RSA encryption, not a digital signature). The Access token from the response will be saved which is later used to send the request.
 - The login will only be executed every 59 Minutes (or when the tokenExpireDate variable in the Collection Variables is set back to a lower unix value. --> just remove one digit of the value) 
 - The x-api-key and the x-tenantsecretkey will automatically be added with the value from the environmentfile to every request Header in the colleciton

@@ -1,0 +1,24 @@
+services:
+  dotnet:
+    build: ./.net
+    env_file: .env
+
+  php:
+    build: ./php
+    env_file: .env
+
+  python:
+    build: ./python
+    env_file: .env
+
+  javascript:
+    build: ./javascript
+    ports:
+      - "8080:80"
+
+# dotnet/php/python are one-shot samples, not long-running servers — run them with:
+#   docker compose run --rm dotnet
+#   docker compose run --rm php
+#   docker compose run --rm python
+# javascript serves the demo page continuously:
+#   docker compose up javascript   # then open http://localhost:8080

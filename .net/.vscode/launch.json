@@ -10,7 +10,7 @@
             "request": "launch",
             "preLaunchTask": "build",
             // If you have changed target frameworks, make sure to update the program path.
-            "program": "${workspaceFolder}/src/Console/bin/Debug/netcoreapp2.0/Console.dll",
+            "program": "${workspaceFolder}/src/Console/bin/Debug/net8.0/Console.dll",
             "args": [],
             "cwd": "${workspaceFolder}/src/Console",
             // For more information about the 'console' field, see https://github.com/OmniSharp/omnisharp-vscode/blob/master/debugger-launchjson.md#console-terminal-window

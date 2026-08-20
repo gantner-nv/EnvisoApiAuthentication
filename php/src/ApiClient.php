@@ -29,13 +29,13 @@ class ApiClient
         $this->publicKey = $publicKey;
     }
 
-    // If no token exists, create one. If one exists but the 60min long lived cache entry doesn't indicate its active anymore, renew it.
-    private function getAuthToken(): string
+    // If no token exists, log in and cache it. Enviso's authenticationapi/v1/renew endpoint
+    // is documented as deprecated in favor of just logging in again, so this doesn't attempt
+    // a token refresh - it just trusts the cached token for its full lifetime, same as `.net`.
+    public function getAuthToken(): string
     {
         if (!Cache::has('envisopay.authToken')) {
             $this->createNewToken();
-        } elseif (!Cache::has('envisopay.authTokenStillActive')) {
-            $this->renewExistingToken();
         }
 
         return Cache::get("envisopay.authToken");
@@ -54,43 +54,22 @@ class ApiClient
         $authEndpoint = $this->baseUrl . "authenticationapi/v1/login";
 
 
-        $response = Http::withHeaders(['x-api-key' => $this->apiKey])
+        $response = Http::withHeaders([
+            'x-api-key' => $this->apiKey,
+        ])
             ->post($authEndpoint, [
                 'apikey' => $this->apiKey,
                 'timestamp' => $timestamp,
                 'signature' => $signature
             ]);
 
-        if ($response->ok()) {
-            $result = $response->json();
-            Cache::put("envisopay.authToken", $result["authToken"], 60 * 60 * 24 * 30); // Cached for 30 days
-            Cache::put("envisopay.refreshToken", $result["refreshToken"], 60 * 60 * 24 * 30); // Cached for 30 days
-        }
-
-    }
-
-    private function renewExistingToken(): void
-    {
-        $authToken = Cache::get("envisopay.authToken");
-        $refreshToken = Cache::get("envisopay.refreshToken");
-
-        $authEndpoint = $this->baseUrl . "authenticationapi/v1/renew";
-
-        $renewal = Http::withHeaders([
-            'x-api-key' => $this->apiKey,
-            'Authorization' => 'bearer ' . $authToken
-        ])
-            ->post($authEndpoint,
-                [
-                    'refreshToken' => $refreshToken,
-                ]
+        if (!$response->ok()) {
+            throw new \RuntimeException(
+                "Enviso login failed: {$response->status()} {$response->body()}"
             );
-
-        if ($renewal->ok()) {
-            Cache::put("envisopay.authTokenStillActive", true, 60 * 60); // If one hour has passed, its due to renewal
-        } else {
-            $this->createNewToken();
         }
 
+        $result = $response->json();
+        Cache::put("envisopay.authToken", $result["authToken"], 60 * 60 * 24 * 30); // Cached for 30 days
     }
 }

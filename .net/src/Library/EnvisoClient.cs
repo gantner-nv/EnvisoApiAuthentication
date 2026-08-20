@@ -1,117 +1,143 @@
-using System;
-using System.Net.Http;
+using System.Net;
+using System.Net.Http.Headers;
 using System.Text;
-using System.Threading.Tasks;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
+using System.Text.Json;
 
-namespace Library
+namespace Library;
+
+public class EnvisoClient : IDisposable
 {
-    public class EnvisoClient
+    public const string DefaultBaseUrl = "https://api.staging-enviso.io/";
+
+    private const string TenantSecretHeader = "x-tenantsecretkey";
+    private const string ApiKeyHeader = "x-api-key";
+    private const string AuthenticationScheme = "Bearer";
+
+    // Enviso's JSON responses use camelCase field names (e.g. "authToken"), but the DTOs
+    // here use PascalCase properties for idiomatic C# — case-insensitive matching is needed
+    // or every property silently deserializes to null instead of throwing.
+    private static readonly JsonSerializerOptions ResponseJsonOptions =
+        new() { PropertyNameCaseInsensitive = true };
+
+    private readonly LoginGenerator _loginGenerator = new();
+    private readonly HttpClient _httpClient;
+    private readonly bool _ownsHttpClient;
+    private string? _authToken;
+
+    public string ApiKey { get; }
+    public string RsaPublicKey { get; }
+    public string TenantSecretKey { get; }
+    public Uri BaseUri { get; }
+    public Uri LoginUri => new(BaseUri, "authenticationapi/v1/login");
+    public string? AuthToken => _authToken;
+
+    /// <param name="apiKey">the apikey to use for further requests</param>
+    /// <param name="rsaPublicKey">the PEM-encoded RSA public key Enviso issued for the tenant, used to sign the login request</param>
+    /// <param name="tenantSecretKey">the tenantsecretkey to use for further requests (authentication)</param>
+    /// <param name="httpClient">
+    /// an existing <see cref="HttpClient"/> to reuse (e.g. one obtained from
+    /// <c>IHttpClientFactory</c>). If omitted, <see cref="EnvisoClient"/> creates and owns its
+    /// own instance, disposed when the client itself is disposed.
+    /// </param>
+    /// <param name="baseUrl">the Enviso API base URL; defaults to the staging environment</param>
+    public EnvisoClient(
+        string apiKey,
+        string rsaPublicKey,
+        string tenantSecretKey,
+        HttpClient? httpClient = null,
+        string baseUrl = DefaultBaseUrl)
     {
-        private const string TENANTSECRETHEADER = "x-tenantsecretkey";
-        private const string APIKEYHEADER = "x-api-key";
-        private const string AUTHENTICATIONSCHEME = "bearer";
-        private bool _isInitialized = false;
-        private string _authToken = string.Empty;
+        ApiKey = apiKey;
+        RsaPublicKey = rsaPublicKey;
+        TenantSecretKey = tenantSecretKey;
+        BaseUri = new Uri(baseUrl, UriKind.Absolute);
 
-        public string TenantSecretKey { get; }
-        public string RsaKey { get; }
-        public string ApiKey { get; }
+        _ownsHttpClient = httpClient is null;
+        _httpClient = httpClient ?? new HttpClient();
+    }
 
-        /// <summary>
-        /// Creates an EnvisoClient with an existing authenticationtoken.
-        /// </summary>
-        /// <param name="apiKey">the apikey to use for further requests</param>
-        /// <param name="authToken">the authtoken to use for further requests (authorisation) </param>
-        /// <param name="tenantSecretKey">the tenantsecretkey to use for further requests (authentication)</param>
-        public EnvisoClient(string apiKey, string rsaKey, string tenantSecretKey)
+    /// <summary>
+    /// Logs into Enviso and caches the access token for subsequent calls.
+    /// </summary>
+    public async Task InitializeAsync(CancellationToken cancellationToken = default)
+    {
+        _authToken = await LoginAsync(cancellationToken);
+    }
+
+    public async Task<TResponse?> GetAsync<TResponse>(Uri uri, CancellationToken cancellationToken = default)
+    {
+        if (_authToken is null)
         {
-            ApiKey = apiKey;
-            RsaKey = rsaKey;
-            TenantSecretKey = tenantSecretKey;
+            throw new InvalidOperationException(
+                $"Call {nameof(InitializeAsync)} before making requests.");
         }
 
-        /// <summary>
-        /// Initializing the client will login into Enviso.
-        /// </summary>
-        public async Task Initialize()
+        var response = await SendAuthenticatedGetAsync(uri, cancellationToken);
+
+        if (response.StatusCode == HttpStatusCode.Unauthorized)
         {
-            Library.LoginGenerator generator = new Library.LoginGenerator();
-            var loginRequest = generator.GenerateLogin(ApiKey, RsaKey);
-
-            var serializedRequest = Newtonsoft.Json.JsonConvert.SerializeObject(loginRequest);
-
-            // we shouldn't create a HTTPclient for each call but share this accross different calls. 
-            // For simplicity of the sample code this  is kept as an optimization.
-            using (var httpClient = new HttpClient())
-            {
-                var content = new StringContent(serializedRequest, Encoding.UTF8, "application/json");
-                var loginResponse = await httpClient.PostAsync(URI.LOGIN, content);
-                var loginResponseDTO = await ReadResponseAndDeserialize<LoginResponseDTO>(loginResponse);
-                this._authToken = loginResponseDTO.AuthToken;
-
-            }
-            _isInitialized = true;
+            // Enviso's authenticationapi/v1/renew endpoint is documented as deprecated in
+            // favor of just logging in again (LoginResponseDTO.RefreshToken is captured but
+            // unused), so this re-runs the full login on expiry rather than refreshing.
+            response.Dispose();
+            _authToken = await LoginAsync(cancellationToken);
+            response = await SendAuthenticatedGetAsync(uri, cancellationToken);
         }
 
-        public async Task<TResponse> GetAsync<TResponse>(string uri)
+        using (response)
         {
-            if (!_isInitialized) throw new System.InvalidOperationException("Please call initialize first before executing future calls");
+            return await ReadResponseAndDeserializeAsync<TResponse>(response, cancellationToken);
+        }
+    }
 
-            // we shouldn't create a HTTPclient for each call but share this accross different calls. 
-            // For simplicity of the sample code this  is kept as an optimization.
-            using (var httpClient = new HttpClient())
-            {
-                httpClient.DefaultRequestHeaders.Clear();
-                httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(AUTHENTICATIONSCHEME, _authToken);
-                httpClient.DefaultRequestHeaders.Add(TENANTSECRETHEADER, TenantSecretKey);
-                httpClient.DefaultRequestHeaders.Add(APIKEYHEADER, ApiKey);
-                var getRawResult = await httpClient.GetAsync(uri);
-                if (getRawResult.Content == null) return default(TResponse);
+    private async Task<string> LoginAsync(CancellationToken cancellationToken)
+    {
+        var loginRequest = _loginGenerator.GenerateLogin(ApiKey, RsaPublicKey);
+        using var request = new HttpRequestMessage(HttpMethod.Post, LoginUri)
+        {
+            Content = new StringContent(
+                JsonSerializer.Serialize(loginRequest), Encoding.UTF8, "application/json"),
+        };
+        request.Headers.Add(ApiKeyHeader, ApiKey);
 
-                // Get result
-                return await ReadResponseAndDeserialize<TResponse>(getRawResult);
-            }
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
+        var loginResponse = await ReadResponseAndDeserializeAsync<LoginResponseDTO>(response, cancellationToken);
+        return loginResponse!.AuthToken;
+    }
+
+    private async Task<HttpResponseMessage> SendAuthenticatedGetAsync(Uri uri, CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+        request.Headers.Authorization = new AuthenticationHeaderValue(AuthenticationScheme, _authToken);
+        request.Headers.Add(TenantSecretHeader, TenantSecretKey);
+        request.Headers.Add(ApiKeyHeader, ApiKey);
+        return await _httpClient.SendAsync(request, cancellationToken);
+    }
+
+    private static async Task<TResponse?> ReadResponseAndDeserializeAsync<TResponse>(
+        HttpResponseMessage responseMessage, CancellationToken cancellationToken)
+    {
+        var responseContent = responseMessage.Content is null
+            ? null
+            : await responseMessage.Content.ReadAsStringAsync(cancellationToken);
+
+        if (!responseMessage.IsSuccessStatusCode)
+        {
+            throw new HttpRequestException(
+                $"Call was not successful.{Environment.NewLine}Status: {responseMessage.StatusCode}" +
+                (responseContent is null ? string.Empty : $"{Environment.NewLine}Response: '{responseContent}'"));
         }
 
-        private async Task<TResponse> ReadResponseAndDeserialize<TResponse>(HttpResponseMessage responseMessage)
-        {
-            if (responseMessage.IsSuccessStatusCode)
-            {
-                var responseContent = await responseMessage.Content.ReadAsStringAsync();
-                return Deserialize<TResponse>(responseContent);
-            }
-            else
-            {
-                if (responseMessage.Content != null)
-                {
-                    var responseContent = await responseMessage.Content.ReadAsStringAsync();
-                    throw new System.Exception($"Call was not succesfull.{Environment.NewLine}Status: {responseMessage.StatusCode}{Environment.NewLine}Response: '{responseContent}'");
-                }
-                throw new System.Exception($"Call was not succesfull.{Environment.NewLine}Status: {responseMessage.StatusCode}");
-            }
-        }
+        return responseContent is null
+            ? default
+            : JsonSerializer.Deserialize<TResponse>(responseContent, ResponseJsonOptions);
+    }
 
-        private TResponse Deserialize<TResponse>(string value)
+    public void Dispose()
+    {
+        if (_ownsHttpClient)
         {
-            try
-            {
-                // Deserialize to the desired type
-                var responseObj = JsonConvert.DeserializeObject<TResponse>(value);
-                return responseObj;
-            }
-            catch (JsonSerializationException)
-            {
-                // do exception handling over here
-                throw;
-            }
-        }
-
-        public static class URI
-        {
-            public const string LOGIN = "https://api.staging-enviso.io/resellingapi/v1/apis/login";
-            public const string VENUES = "https://api.staging-enviso.io/resellingapi/v1/venues";
+            _httpClient.Dispose();
         }
     }
 }

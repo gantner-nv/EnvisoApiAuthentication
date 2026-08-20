@@ -1,9 +1,3 @@
-namespace Library
-{
-    public class LoginResponseDTO
-    {
-        public string AuthToken { get; set; }
+namespace Library;
 
-        public string RefreshKey { get; set; }
-    }
-}
+public record LoginResponseDTO(string AuthToken, string RefreshToken);

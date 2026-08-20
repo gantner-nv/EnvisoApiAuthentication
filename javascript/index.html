@@ -5,7 +5,6 @@
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
     <script type="text/javascript" src="sha256.js"></script>
     <script type="text/javascript" src="jsencrypt.js"></script>
-    <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
     <style>
         input,
         button,
@@ -62,9 +61,6 @@ n21kDr842Q+WDtLE4QIDAQAB
         <br/>
         <textarea id="output" rows=4 cols=70></textarea>
     </fieldset>
-    <p>
-	More info on <a href="https://confluence.syxautomations.com/display/NGPLATFORM/Api-Key+Generation+Technical" target="_blank">Confluence</a>
-    </p>
 
     <script type="text/javascript">
 
@@ -74,13 +70,13 @@ n21kDr842Q+WDtLE4QIDAQAB
             hashAndEncrypt();
         }
 
-        function publicKey() { return $('#pubkey').val(); }
-        function APIkey() { return $('#apikey').val(); }
-        function timestamp() { return $('#timestamp').val(); }
-        function textToEncrypt() { return $('#uncrypted').val(); }
-        function showResult(value) { $('#content').val(value); }
-        function showSHA256(value) { $('#uncrypted').val(value); }
-        function setTimestamp(value) { $('#timestamp').val(value); }
+        function publicKey() { return document.getElementById('pubkey').value; }
+        function APIkey() { return document.getElementById('apikey').value; }
+        function timestamp() { return document.getElementById('timestamp').value; }
+        function textToEncrypt() { return document.getElementById('uncrypted').value; }
+        function showResult(value) { document.getElementById('content').value = value; }
+        function showSHA256(value) { document.getElementById('uncrypted').value = value; }
+        function setTimestamp(value) { document.getElementById('timestamp').value = value; }
 
 
         function hash(values) {  // makes SHA256-hash from values (concatted with "_")
@@ -90,11 +86,10 @@ n21kDr842Q+WDtLE4QIDAQAB
             return myhash;
         }
 
-        function sign(textToEncrypt, publicKey) { // signs SHA256-hash with public key
-            // Encrypt with the public key...
+        function encryptHash(hash, publicKey) { // RSA/PKCS#1-v1.5 encrypts the hash with the public key (not a signature - see root README)
             var encrypt = new JSEncrypt();
             encrypt.setPublicKey(publicKey);
-            var encrypted = encrypt.encrypt(textToEncrypt);
+            var encrypted = encrypt.encrypt(hash);
             return encrypted;
         }
 
@@ -110,24 +105,27 @@ n21kDr842Q+WDtLE4QIDAQAB
             var signature = hash([APIkey(),timestamp()]);
             var uncrypted = signature;
             showSHA256(uncrypted);
-            var signed = sign(signature, publicKey());
+            var signed = encryptHash(signature, publicKey());
+            if (signed === false) {
+                showResult('ERROR: encryption failed - check that API Secret is a valid PEM public key');
+                document.getElementById('output').value = '';
+                return;
+            }
             showResult(signed);
 
             output = {
-                apikey: APIkey(), 
-                timestamp: timestamp(), 
+                apikey: APIkey(),
+                timestamp: timestamp(),
                 signature: signed
             }
-            $("#output").val(JSON.stringify(output)); 
+            document.getElementById('output').value = JSON.stringify(output);
         }
 
         refreshTime();
 
-        $(function () {
-            $("input,textarea").change(function () {
-                hashAndEncrypt();
-            })
-        })
+        document.querySelectorAll('input, textarea').forEach(function (el) {
+            el.addEventListener('change', hashAndEncrypt);
+        });
 
     </script>
 </body>

@@ -1,72 +1,40 @@
-﻿using System;
-using System.IO;
+using System.Security.Cryptography;
 using System.Text;
-using Org.BouncyCastle.Crypto;
-using Org.BouncyCastle.Crypto.Encodings;
-using Org.BouncyCastle.Crypto.Engines;
 
-namespace Library
+namespace Library;
+
+public class LoginGenerator
 {
-    public class LoginGenerator
+    public const string ApiLoginTimestampFormat = "yyyy-MM-ddTHH:mm:ss.fffZ";
+
+    public LoginRequestDTO GenerateLogin(string apiKey, string rsaPublicKeyPem)
     {
-        public static readonly string API_LOGIN_TIMESTAMP_FORMAT = "yyyy'-'MM'-'ddTHH\\:mm\\:ss.fffZ";
+        var timestamp = DateTime.UtcNow.ToString(ApiLoginTimestampFormat);
+        var hash = CreateSha256Hash(CreateDataToEncrypt(apiKey, timestamp));
+        var signature = EncryptWithPublicKey(rsaPublicKeyPem, hash);
+        return new LoginRequestDTO(apiKey, timestamp, signature);
+    }
 
-        public LoginRequestDTO GenerateLogin(string apiKey, string publicKey)
-        {
-            var currentTimeStamp = DateTime.UtcNow.ToString(API_LOGIN_TIMESTAMP_FORMAT);
+    private static string CreateDataToEncrypt(string apiKey, string currentTimeStamp) =>
+        $"{apiKey}_{currentTimeStamp}";
 
-            // Create the data to encrypt
-            var data = CreateDataToEncrypt(apiKey, currentTimeStamp);
+    private static string CreateSha256Hash(string data) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(data))).ToLowerInvariant();
 
-            // encrypt the data
-            var encrypted = CreateSHA256Hash(data);
+    /// <summary>
+    /// Encrypts <paramref name="data"/> with the public part of Enviso's asymmetric keypair
+    /// using RSA/PKCS#1 v1.5. This is envelope encryption, not a digital signature — see
+    /// <see cref="LoginRequestDTO.Signature"/> for why the wire field is still called that.
+    /// </summary>
+    /// <param name="rsaPublicKeyPem">the PEM-encoded public key Enviso issued for the tenant</param>
+    /// <param name="data">the original data to encrypt</param>
+    /// <returns>the encrypted data, base64-encoded</returns>
+    private static string EncryptWithPublicKey(string rsaPublicKeyPem, string data)
+    {
+        using var rsa = RSA.Create();
+        rsa.ImportFromPem(rsaPublicKeyPem);
 
-            // create a signature by encrypting that data.
-            var signature = EncryptWithPublicKey(publicKey, encrypted);
-
-            return new LoginRequestDTO(apiKey, currentTimeStamp, signature);
-        }
-
-        private string CreateDataToEncrypt(string apikey, string currentTimeStamp)
-        {
-            return $"{apikey}_{currentTimeStamp}";
-        }
-
-        private string CreateSHA256Hash(string data)
-        {
-            var encData = Encoding.UTF8.GetBytes(data);
-            Org.BouncyCastle.Crypto.Digests.Sha256Digest myHash = new Org.BouncyCastle.Crypto.Digests.Sha256Digest();
-            myHash.BlockUpdate(encData, 0, encData.Length);
-            byte[] compArr = new byte[myHash.GetDigestSize()];
-            myHash.DoFinal(compArr, 0);
-            StringBuilder result = new StringBuilder();
-            for (int i = 0; i < compArr.Length; i++)
-            {
-                result.Append(compArr[i].ToString("X2"));
-            }
-            return result.ToString();
-        }
-
-        /// <summary>
-        /// Encrypts data with the given public part of the asymmetric keypair using the RSA algorithm
-        /// </summary>
-        /// <param name="publicKey">the public part of the asymetric keypair</param>
-        /// <param name="data">the original data to encrypt</param>
-        /// <returns>the encrypted data in a base 64 string</returns>
-        private string EncryptWithPublicKey(string publicKey, string data)
-        {
-            var bytesToEncrypt = Encoding.UTF8.GetBytes(data);
-            var encryptEngine = new Pkcs1Encoding(new RsaEngine());
-
-            using (var txtreader = new StringReader(publicKey))
-            {
-                var keyParameter = (AsymmetricKeyParameter)new Org.BouncyCastle.OpenSsl.PemReader(txtreader).ReadObject();
-
-                encryptEngine.Init(true, keyParameter);
-            }
-
-            var encrypted = Convert.ToBase64String(encryptEngine.ProcessBlock(bytesToEncrypt, 0, bytesToEncrypt.Length));
-            return encrypted;
-        }
+        var encrypted = rsa.Encrypt(Encoding.UTF8.GetBytes(data), RSAEncryptionPadding.Pkcs1);
+        return Convert.ToBase64String(encrypted);
     }
 }
