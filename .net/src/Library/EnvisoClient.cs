@@ -3,7 +3,6 @@ using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 
 namespace Library
 {
@@ -18,17 +17,20 @@ namespace Library
         public string TenantSecretKey { get; }
         public string RsaKey { get; }
         public string ApiKey { get; }
+        public string RsaEncryptionPadding { get; }
 
         /// <summary>
         /// Creates an EnvisoClient with an existing authenticationtoken.
         /// </summary>
         /// <param name="apiKey">the apikey to use for further requests</param>
-        /// <param name="authToken">the authtoken to use for further requests (authorisation) </param>
+        /// <param name="rsaKey">the public RSA key used to create the login signature</param>
         /// <param name="tenantSecretKey">the tenantsecretkey to use for further requests (authentication)</param>
-        public EnvisoClient(string apiKey, string rsaKey, string tenantSecretKey)
+        /// <param name="rsaEncryptionPadding">the RSA padding used for login</param>
+        public EnvisoClient(string apiKey, string rsaKey, string tenantSecretKey, string rsaEncryptionPadding)
         {
             ApiKey = apiKey;
             RsaKey = rsaKey;
+            RsaEncryptionPadding = string.IsNullOrEmpty(rsaEncryptionPadding) ? Models.RsaEncryptionPadding.Pkcs1 : rsaEncryptionPadding;
             TenantSecretKey = tenantSecretKey;
         }
 
@@ -38,7 +40,7 @@ namespace Library
         public async Task Initialize()
         {
             Library.LoginGenerator generator = new Library.LoginGenerator();
-            var loginRequest = generator.GenerateLogin(ApiKey, RsaKey);
+            var loginRequest = generator.GenerateLogin(ApiKey, RsaKey, RsaEncryptionPadding);
 
             var serializedRequest = Newtonsoft.Json.JsonConvert.SerializeObject(loginRequest);
 
@@ -46,6 +48,7 @@ namespace Library
             // For simplicity of the sample code this  is kept as an optimization.
             using (var httpClient = new HttpClient())
             {
+                httpClient.DefaultRequestHeaders.Add(APIKEYHEADER, ApiKey);
                 var content = new StringContent(serializedRequest, Encoding.UTF8, "application/json");
                 var loginResponse = await httpClient.PostAsync(URI.LOGIN, content);
                 var loginResponseDTO = await ReadResponseAndDeserialize<LoginResponseDTO>(loginResponse);
